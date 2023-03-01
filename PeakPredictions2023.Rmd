@@ -1,0 +1,591 @@
+---
+title: "Cherry Blossom Peak Bloom Predictions"
+author: Sara Alhassani and D.J. Grant
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Necessary Packages
+```{r}
+library(readr)
+library(tidyr)
+library(dplyr)
+library(rnoaa)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+```
+
+## Importing Past Year Data
+
+DC bloom data and restrict DC bloom data to necessary columns and years
+```{r}
+washingtondc <- read_csv("data/washingtondc.csv")
+
+DC_bloom <- washingtondc %>%
+  select(location, year, bloom_date, bloom_doy) %>%
+  filter(year >= 2014)
+```
+
+Kyoto bloom data and restrict Kyoto bloom data to necessary columns and years
+```{r}
+kyoto <- read_csv("data/kyoto.csv")
+
+Ky_bloom <- kyoto %>%
+  select(location, year, bloom_date, bloom_doy) %>%
+  filter(year >= 2014)
+```
+
+Liestal bloom data and restrict Liestal bloom data to necessary columns and years
+```{r}
+liestal <- read_csv("data/liestal.csv")
+
+Li_bloom <- liestal %>%
+  select(location, year, bloom_date, bloom_doy) %>%
+  filter(year >= 2014)
+```
+
+## Importing PM 2.5 Data
+
+DC: PM 2.5 data and Restrict variables and years
+```{r}
+DC_pm2.5 <- read.csv("pm data/DCpm.txt",header= TRUE, sep="", row.names=NULL)
+
+DC_pm2.5 <- DC_pm2.5 %>%
+  select("Year", "Month", "Day", "UTC_Hour", "PM2.5") %>%
+  filter(Year >= 2014)
+
+#Take daily average from the hourly 
+
+DC_avgpm <- DC_pm2.5 %>%
+  group_by(Year, Month, Day) %>%
+  rename(year = Year, month = Month, day = Day) %>%
+  summarize(PM_mean = mean(PM2.5))
+
+DC_avgpm$city <- "washingtondc"
+```
+
+
+Kyoto: PM 2.5 data and Restrict variables and years
+```{r}
+Ky_pm2.5 <- read.csv("pm data/Kyotopm.txt" ,header= TRUE, sep="", row.names=NULL)
+
+Ky_pm2.5 <- Ky_pm2.5 %>%
+  select("Year", "Month", "Day", "UTC_Hour", "PM2.5") %>%
+  filter(Year >= 2014)
+
+#Take daily average from the hourly 
+
+Ky_avgpm <- Ky_pm2.5 %>%
+  group_by(Year, Month, Day)%>%
+  rename(year = Year, month = Month, day = Day) %>%
+  summarize(PM_mean = mean(PM2.5))
+
+Ky_avgpm$city <- "kyoto"
+```
+
+
+Liestal: PM 2.5 data and Restrict variables and years
+```{r}
+Li_pm2.5 <- read.csv("pm data/Switzerlandpm.txt",header= TRUE, sep="", row.names=NULL)
+
+Li_pm2.5 <- Li_pm2.5 %>%
+  select("Year", "Month", "Day", "UTC_Hour", "PM2.5") %>%
+  filter(Year >= 2014)
+
+#Take daily average from the hourly 
+
+Li_avgpm <- Li_pm2.5 %>%
+  group_by(Year, Month, Day) %>%
+  rename(year = Year, month = Month, day = Day) %>%
+  summarize(PM_mean = mean(PM2.5))
+
+Li_avgpm$city <- "liestal"
+```
+
+
+Vancouver: PM 2.5 data and Restrict variables and years
+```{r}
+Vc_pm2.5 <- read.csv("pm data/Vancouverpm.txt",header= TRUE, sep="", row.names=NULL)
+
+Vc_pm2.5 <- Vc_pm2.5 %>%
+  select("Year", "Month", "Day", "UTC_Hour", "PM2.5") %>%
+  filter(Year >= 2014)
+
+#Take daily average from the hourly 
+
+Vc_avgpm <- Vc_pm2.5 %>%
+  group_by(Year, Month, Day) %>%
+  rename(year = Year, month = Month, day = Day) %>%
+  summarize(PM_mean = mean(PM2.5))
+
+Vc_avgpm$city <- "vancouver"
+```
+
+## Importing Temperature Data
+
+DC daily temperatures
+```{r}
+DC_all <-ghcnd_search('USW00013743')
+
+DC_tdaily <- DC_all$tavg
+DC_tdaily <- DC_tdaily %>%
+  select(id, tavg, date) %>%
+  separate(.,date, into = c("year","month", "day"), sep = "-") %>%
+  filter(year >= 2014) %>%
+  rename('avgtemp' = 'tavg')
+
+DC_tdaily$month <- as.numeric(DC_tdaily$month)
+DC_tdaily$day <- as.numeric(DC_tdaily$day)
+DC_tdaily$year <- as.numeric(DC_tdaily$year)
+
+#change from celsius degrees of tenth to celsius
+DC_tdaily$avgtemp <- DC_tdaily$avgtemp/10
+
+#replacing station ids with city name
+DC_tdaily$id <- gsub('USW00013743', 'washingtondc',DC_tdaily$id)
+
+#renaming id column to city name
+DC_tdaily <- DC_tdaily %>% rename('city' = 'id')
+```
+
+Kyoto daily temperatures
+```{r}
+Ky_all <-ghcnd_search('JA000047759')
+
+Ky_tdaily <- Ky_all$tavg
+Ky_tdaily <- Ky_tdaily %>%
+  select(id, tavg, date) %>%
+  separate(.,date, into = c("year","month", "day"), sep = "-") %>%
+  filter(year >= 2014) %>%
+  rename('avgtemp' = 'tavg')
+
+Ky_tdaily$month <- as.numeric(Ky_tdaily$month)
+Ky_tdaily$day <- as.numeric(Ky_tdaily$day)
+Ky_tdaily$year <- as.numeric(Ky_tdaily$year)
+
+#change from celsius degrees of tenth to celsius
+Ky_tdaily$avgtemp <- Ky_tdaily$avgtemp/10
+
+#replacing station ids with city name
+Ky_tdaily$id <- gsub('JA000047759', 'kyoto',Ky_tdaily$id)
+
+#renaming id column to city name
+Ky_tdaily <- Ky_tdaily %>% rename('city' = 'id')
+```
+
+Liestal daily temperatures
+```{r}
+Li_all <-ghcnd_search('SZ000001940')
+
+Li_tdaily <- Li_all$tavg
+Li_tdaily <- Li_tdaily %>%
+  select(id, tavg, date) %>%
+  separate(.,date, into = c("year","month", "day"), sep = "-") %>%
+  filter(year >= 2014) %>%
+  rename('avgtemp' = 'tavg')
+
+Li_tdaily$month <- as.integer(Li_tdaily$month)
+Li_tdaily$day <- as.integer(Li_tdaily$day)
+Li_tdaily$year <- as.integer(Li_tdaily$year)
+
+#change from celsius degrees of tenth to celsius
+Li_tdaily$tavg <- Li_tdaily$avgtemp/10
+
+#replacing station ids with city name
+Li_tdaily$id <- gsub('SZ000001940', 'liestal',Li_tdaily$id)
+
+#renaming id column to city name
+Li_tdaily <- Li_tdaily %>% rename('city' = 'id')
+```
+
+Vancouver daily temperatures
+```{r}
+Vc_all <-ghcnd_search('CA001108395')
+
+Vc_tdaily <- Vc_all$tavg
+Vc_tdaily <- Vc_tdaily %>%
+  select(id, tavg, date) %>%
+  separate(.,date, into = c("year","month", "day"), sep = "-") %>%
+  filter(year >= 2014) %>%
+  rename('avgtemp' = 'tavg')
+
+Vc_tdaily$month <- as.integer(Vc_tdaily$month)
+Vc_tdaily$day <- as.integer(Vc_tdaily$day)
+Vc_tdaily$year <- as.integer(Vc_tdaily$year)
+
+
+#change from celsius degrees of tenth to celsius
+Vc_tdaily$tavg <- Vc_tdaily$avgtemp/10
+
+#replacing station ids with city name
+Vc_tdaily$id <- gsub('CA001108395', 'vancouver',Vc_tdaily$id)
+
+#renaming id column to city name
+Vc_tdaily <- Vc_tdaily %>% rename('city' = 'id')
+```
+
+## Visualization
+```{r}
+
+DC_tempbloom <- left_join(DC_tdaily, DC_bloom)
+
+DC_tempbloom %>%
+  mutate(date = as.Date(str_c(year,month,day, sep = "-")),
+         month = format(date, "%b")) %>%
+  filter(year != 2022,
+         month %in% month.abb[1:3]) %>%
+  ggplot() + 
+  aes(factor(bloom_doy), avgtemp) +
+  geom_boxplot() +
+  facet_grid(factor(month, levels = month.abb) ~ .)
+```
+
+```{r}
+DC_tempbloom %>%
+  mutate(date = as.Date(str_c(year,month,day, sep = "-")),
+         month = format(date, "%b")) %>%
+  filter(year != 2022,
+         month %in% month.abb[1:12], !month %in% month.abb[4:11]) %>%
+  ggplot() +
+#  geom_boxplot(aes(factor(bloom_doy), avgtemp)) +
+#  geom_point(aes(bloom_doy, avgtemp)) +
+  geom_smooth(aes(bloom_doy, avgtemp), method = "lm") +
+  facet_wrap(factor(month, levels = c("Dec", "Jan", "Feb", "Mar")) ~ ., scales = "free", nrow = 2) +
+  coord_flip()
+```
+
+```{r}
+DC_tempbloom %>%
+  mutate(date = as.Date(str_c(year,month,day, sep = "-")),
+         date_filter = as.Date(str_c(2021,month,day, sep = "-")),
+         month = format(date, "%b"),
+         date_filter = if_else(month %in% month.abb[10:12], date_filter - 365, date_filter)) %>%
+  filter(year != 2022,
+         date_filter > as.Date("2020-12-15"),
+         date_filter < as.Date("2021-04-15")
+  ) %>%
+  group_by(year) %>%
+  summarize(month_avgtemp = mean(avgtemp),
+            bloom_doy = first(bloom_doy)) %>%
+  ggplot() + 
+  aes(month_avgtemp, bloom_doy) +
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+```{r}
+DC_pmbloom %>%
+  mutate(date = as.Date(str_c(year,month,day, sep = "-")),
+         month = format(date, "%b")) %>%
+  filter(year != 2022,
+         month %in% month.abb[1:12], !month %in% month.abb[4:11]) %>%
+  ggplot() + 
+  aes(bloom_doy, PM_mean) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_grid(factor(month, levels = month.abb) ~ .)
+```
+```{r}
+DC_pmbloom %>%
+  mutate(date = as.Date(str_c(year,month,day, sep = "-")),
+         date_filter = as.Date(str_c(2021,month,day, sep = "-")),
+         month = format(date, "%b"),
+         date_filter = if_else(month %in% month.abb[10:12], date_filter - 365, date_filter)) %>%
+  filter(year != 2022,
+          date_filter > as.Date("2020-12-15"),
+         date_filter < as.Date("2021-04-15")
+  ) %>%
+  group_by(year) %>%
+  summarize(bloom_doy = first(bloom_doy),
+            month_PMavg = mean(PM_mean)) %>%
+  ggplot() + 
+  aes(month_PMavg, bloom_doy) +
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+--------------------------------------------------------------------------------
+##Predictions
+
+#DC Data
+```{r}
+DC_pmbloom <- left_join(DC_avgpm, DC_bloom)
+DC_data <- full_join(DC_pmbloom, DC_tdaily)
+
+DC_data$date<-as.Date(with(DC_data,paste(year,month,day,sep="-")),"%Y-%m-%d")
+DC_data$week_number <- as.numeric(strftime(DC_data$date, format = "%V"))
+DC_data$week <- floor_date(DC_data$date, "week")
+
+DC_data <- DC_data %>%
+  group_by(week) %>%
+  mutate(weektemp = mean(avgtemp)) 
+
+DC_data = DC_data[,!(names(DC_data) %in% c("location"))]
+```
+
+# DC Model and Predictions
+```{r}
+pred_temp <- lm(DC_data$weektemp ~ cos(DC_data$week_number*2*pi/52) + sin(DC_data$week_number*2*pi/52))
+summary(pred_temp)
+
+newtemp <- data.frame(predict(pred_temp, newdata = data.frame(date.int = 'year')))
+
+#predict weektemp
+ggplot(DC_data) +
+  aes(week_number, weektemp) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ sin(x * 2 * pi / 52) + cos(x * 2 * pi / 52))
+
+
+temp_pred <-
+lm(weektemp ~ year + sin(week_number * 2 * pi / 52) + cos(week_number * 2 * pi / 52),
+   data = DC_data)
+
+predict(temp_pred, newdata = data.frame(week_number = 1:52, year = 2023))
+
+#predict pm
+ggplot(DC_data) +
+  aes(week_number, PM_mean) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ sin(x * 2 * pi / 52) + cos(x * 2 * pi / 52)) +
+  facet_wrap(~year)
+
+
+PM_pred <-
+  lm(PM_mean ~ year + sin(week_number * 2 * pi / 52) + cos(week_number * 2 * pi / 52),
+     data = DC_data)
+
+predictions <- 
+  cbind(expand.grid(week_number = 1:52, year = 2023:2032),
+        weektemp =
+    predict(temp_pred, newdata = expand.grid(week_number = 1:52, year = 2023:2032)),
+    PM_mean =
+      predict(PM_pred, newdata = expand.grid(week_number = 1:52, year = 2023:2032)))
+
+model <- lm(bloom_doy ~ PM_mean + weektemp + week_number + year, data = DC_data)
+
+predictions$bloom_doy_pred <- predict(model, newdata = predictions)
+
+DC_pred <- predictions %>%
+  group_by(year) %>%
+  summarize(bloom_doy = mean(bloom_doy_pred)) %>%
+  mutate(bloom_doy = round(bloom_doy))
+
+DC_pred
+```
+
+#Kyoto Data
+```{r}
+Ky_pmbloom <- left_join(Ky_avgpm, Ky_bloom)
+Ky_data <- full_join(Ky_pmbloom, Ky_tdaily)
+
+Ky_data$date<-as.Date(with(Ky_data,paste(year,month,day,sep="-")),"%Y-%m-%d")
+Ky_data$week_number <- as.numeric(strftime(Ky_data$date, format = "%V"))
+Ky_data$week <- floor_date(Ky_data$date, "week")
+
+Ky_data <- Ky_data %>%
+  group_by(week) %>%
+  mutate(weektemp = mean(avgtemp)) 
+
+Ky_data = Ky_data[,!(names(Ky_data) %in% c("location"))]
+```
+
+#Kyoto Model and Predictions
+```{r}
+#predict weektemp
+ggplot(Ky_data) +
+  aes(week_number, weektemp) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ sin(x * 2 * pi / 52) + cos(x * 2 * pi / 52))
+
+
+temp_pred1 <-
+lm(weektemp ~ year + sin(week_number * 2 * pi / 52) + cos(week_number * 2 * pi / 52),
+   data = Ky_data)
+
+predict(temp_pred1, newdata = data.frame(week_number = 1:52, year = 2023))
+
+#predict pm
+ggplot(Ky_data) +
+  aes(week_number, PM_mean) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ sin(x * 2 * pi / 52) + cos(x * 2 * pi / 52)) +
+  facet_wrap(~year)
+
+
+PM_pred1 <-
+  lm(PM_mean ~ year + sin(week_number * 2 * pi / 52) + cos(week_number * 2 * pi / 52),
+     data = Ky_data)
+
+predictions <- 
+  cbind(expand.grid(week_number = 1:52, year = 2023:2032),
+        weektemp =
+    predict(temp_pred, newdata = expand.grid(week_number = 1:52, year = 2023:2032)),
+    PM_mean =
+      predict(PM_pred, newdata = expand.grid(week_number = 1:52, year = 2023:2032)))
+
+model <- lm(bloom_doy ~ PM_mean + weektemp + week_number + year, data = Ky_data)
+
+predictions$bloom_doy_pred <- predict(model, newdata = predictions)
+
+Ky_pred <- predictions %>%
+  group_by(year) %>%
+  summarize(bloom_doy = mean(bloom_doy_pred)) %>%
+  mutate(bloom_doy = round(bloom_doy))
+  
+Ky_pred
+```
+
+#Liestal Data
+```{r}
+Li_pmbloom <- left_join(Li_avgpm, Li_bloom)
+Li_data <- full_join(Li_pmbloom, Li_tdaily)
+
+Li_data$date<-as.Date(with(Li_data,paste(year,month,day,sep="-")),"%Y-%m-%d")
+Li_data$week_number <- as.numeric(strftime(Li_data$date, format = "%V"))
+Li_data$week <- floor_date(Li_data$date, "week")
+
+Li_data <- Li_data %>%
+  group_by(week) %>%
+  mutate(weektemp = mean(avgtemp)) 
+
+Li_data = Li_data[,!(names(Li_data) %in% c("location"))]
+```
+
+# Liestal Model and Predictions
+```{r}
+pred_temp <- lm(Li_data$weektemp ~ cos(Li_data$week_number*2*pi/52) + sin(Li_data$week_number*2*pi/52))
+summary(pred_temp)
+
+newtemp <- data.frame(predict(pred_temp, newdata = data.frame(date.int = 'year')))
+
+#predict weektemp
+ggplot(Li_data) +
+  aes(week_number, weektemp) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ sin(x * 2 * pi / 52) + cos(x * 2 * pi / 52))
+
+
+temp_pred <-
+lm(weektemp ~ year + sin(week_number * 2 * pi / 52) + cos(week_number * 2 * pi / 52),
+   data = Li_data)
+
+predict(temp_pred, newdata = data.frame(week_number = 1:52, year = 2023))
+
+#predict pm
+ggplot(Li_data) +
+  aes(week_number, PM_mean) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ sin(x * 2 * pi / 52) + cos(x * 2 * pi / 52)) +
+  facet_wrap(~year)
+
+
+PM_pred <-
+  lm(PM_mean ~ year + sin(week_number * 2 * pi / 52) + cos(week_number * 2 * pi / 52),
+     data = Li_data)
+
+predictions <- 
+  cbind(expand.grid(week_number = 1:52, year = 2023:2032),
+        weektemp =
+    predict(temp_pred, newdata = expand.grid(week_number = 1:52, year = 2023:2032)),
+    PM_mean =
+      predict(PM_pred, newdata = expand.grid(week_number = 1:52, year = 2023:2032)))
+
+model <- lm(bloom_doy ~ PM_mean + weektemp + week_number + year, data = Li_data)
+
+predictions$bloom_doy_pred <- predict(model, newdata = predictions)
+
+Li_pred <- predictions %>%
+  group_by(year) %>%
+  summarize(bloom_doy = mean(bloom_doy_pred)) %>%
+  mutate(bloom_doy = round(bloom_doy))
+
+Li_pred
+```
+
+#Vancouver Data
+```{r}
+Vc_data <- full_join(Vc_avgpm, Vc_tdaily)
+
+Vc_data$date<-as.Date(with(Vc_data,paste(year,month,day,sep="-")),"%Y-%m-%d")
+Vc_data$week_number <- as.numeric(strftime(Vc_data$date, format = "%V"))
+Vc_data$week <- floor_date(Vc_data$date, "week")
+
+Vc_data <- Vc_data %>%
+  group_by(week) %>%
+  mutate(weektemp = mean(avgtemp)) 
+
+Vc_data = Vc_data[,!(names(Vc_data) %in% c("location"))]
+```
+
+#Vancouver Model and Predictions
+```{r}
+pred_temp <- lm(Vc_data$weektemp ~ cos(Vc_data$week_number*2*pi/52) + sin(Vc_data$week_number*2*pi/52))
+summary(pred_temp)
+
+newtemp <- data.frame(predict(pred_temp, newdata = data.frame(date.int = 'year')))
+
+#predict weektemp
+ggplot(Vc_data) +
+  aes(week_number, weektemp) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ sin(x * 2 * pi / 52) + cos(x * 2 * pi / 52))
+
+
+temp_pred <-
+lm(weektemp ~ year + sin(week_number * 2 * pi / 52) + cos(week_number * 2 * pi / 52),
+   data = Vc_data)
+
+predict(temp_pred, newdata = data.frame(week_number = 1:52, year = 2023))
+
+#predict pm
+ggplot(Vc_data) +
+  aes(week_number, PM_mean) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ sin(x * 2 * pi / 52) + cos(x * 2 * pi / 52)) +
+  facet_wrap(~year)
+
+
+PM_pred <-
+  lm(PM_mean ~ year + sin(week_number * 2 * pi / 52) + cos(week_number * 2 * pi / 52),
+     data = Vc_data)
+
+predictions <- 
+  cbind(expand.grid(week_number = 1:52, year = 2023:2032),
+        weektemp =
+    predict(temp_pred, newdata = expand.grid(week_number = 1:52, year = 2023:2032)),
+    PM_mean =
+      predict(PM_pred, newdata = expand.grid(week_number = 1:52, year = 2023:2032)))
+
+model <- lm(bloom_doy ~ PM_mean + weektemp + week_number + year, data = DC_data)
+
+predictions$bloom_doy_pred <- predict(model, newdata = predictions)
+
+Vc_pred <- predictions %>%
+  group_by(year) %>%
+  summarize(bloom_doy = mean(bloom_doy_pred)) %>%
+  mutate(bloom_doy = round(bloom_doy))
+
+Vc_pred
+```
+
+## Combine Predictions
+```{r}
+
+DC_pred <-DC_pred %>% rename('washingtondc' = 'bloom_doy')
+Ky_pred <-Ky_pred %>% rename('kyoto' = 'bloom_doy')
+Li_pred <-Li_pred %>% rename('liestal' = 'bloom_doy')
+Vc_pred <-Vc_pred %>% rename('vancouver' = 'bloom_doy')
+
+predictions <- full_join(Ky_pred, Li_pred)
+predictions <- full_join(predictions, DC_pred)
+predictions <- full_join(predictions, Vc_pred)
+
+```
+
+Export
+```{r}
+write.csv(predictions,"predictions2023.csv", row.names = FALSE)
+```
